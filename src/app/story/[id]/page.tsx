@@ -361,7 +361,7 @@ function StoryPageInner({ id, showOfflineNote: initialOfflineNote }: { id: strin
   );
 }
 
-// Controlled reader that syncs page with parent
+// Controlled reader that syncs page with parent — now auto-advances through all scenes
 function ControlledReader({ story, page, setPage, reduceMotion, onRegenerate, regenLoading }: { story: Story; page: number; setPage: (n: number) => void; reduceMotion: boolean; onRegenerate: (o?: any) => void; regenLoading: boolean }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentWordIdx, setCurrentWordIdx] = useState<number | null>(null);
@@ -379,6 +379,15 @@ function ControlledReader({ story, page, setPage, reduceMotion, onRegenerate, re
   const sleepTimeoutRef = useRef<any>(null);
   const sleepIntervalRef = useRef<any>(null);
   const fadeIntervalRef = useRef<any>(null);
+  const autoAdvanceTimeoutRef = useRef<any>(null);
+  const fallbackIntervalRef = useRef<any>(null);
+  const isContinuousRef = useRef(false);
+  const currentPageRef = useRef(page);
+
+  // Keep ref in sync
+  useEffect(() => {
+    currentPageRef.current = page;
+  }, [page]);
 
   const scene = story.scenes[page];
   const cleanWords = scene ? scene.text.split(/\s+/) : [];
@@ -420,17 +429,23 @@ function ControlledReader({ story, page, setPage, reduceMotion, onRegenerate, re
       if (sleepTimeoutRef.current) clearTimeout(sleepTimeoutRef.current);
       if (sleepIntervalRef.current) clearInterval(sleepIntervalRef.current);
       if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+      if (autoAdvanceTimeoutRef.current) clearTimeout(autoAdvanceTimeoutRef.current);
+      if (fallbackIntervalRef.current) clearInterval(fallbackIntervalRef.current);
       soundManager.stop();
       window.speechSynthesis.cancel();
     };
   }, []);
 
+  // Only reset when story id changes, not on every page change (to allow auto-advance)
   useEffect(() => {
     setIsPlaying(false);
     setCurrentWordIdx(null);
+    isContinuousRef.current = false;
     window.speechSynthesis.cancel();
     if (utteranceRef.current) utteranceRef.current = null;
-  }, [page, story.id]);
+    if (autoAdvanceTimeoutRef.current) clearTimeout(autoAdvanceTimeoutRef.current);
+    if (fallbackIntervalRef.current) clearInterval(fallbackIntervalRef.current);
+  }, [story.id]);
 
   const startSleepTimer = (minutesStr: string) => {
     if (sleepTimeoutRef.current) clearTimeout(sleepTimeoutRef.current);
@@ -456,9 +471,12 @@ function ControlledReader({ story, page, setPage, reduceMotion, onRegenerate, re
   };
 
   const fadeOutAndStop = () => {
+    isContinuousRef.current = false;
     setIsPlaying(false);
     window.speechSynthesis.cancel();
     setCurrentWordIdx(null);
+    if (autoAdvanceTimeoutRef.current) clearTimeout(autoAdvanceTimeoutRef.current);
+    if (fallbackIntervalRef.current) clearInterval(fallbackIntervalRef.current);
     let vol = volume;
     fadeIntervalRef.current = setInterval(() => {
       vol -= 0.05;
@@ -475,61 +493,122 @@ function ControlledReader({ story, page, setPage, reduceMotion, onRegenerate, re
     }, 200);
   };
 
-  const handlePlay = () => {
-    if (isPlaying) {
-      window.speechSynthesis.cancel();
-      setIsPlaying(false);
-      setCurrentWordIdx(null);
-      return;
-    }
-    if (!scene) return;
-    const utterance = new SpeechSynthesisUtterance(scene.text);
+  const stopPlayback = () => {
+    isContinuousRef.current = false;
+    window.speechSynthesis.cancel();
+    setIsPlaying(false);
+    setCurrentWordIdx(null);
+    if (autoAdvanceTimeoutRef.current) clearTimeout(autoAdvanceTimeoutRef.current);
+    if (fallbackIntervalRef.current) clearInterval(fallbackIntervalRef.current);
+    if (utteranceRef.current) utteranceRef.current = null;
+  };
+
+  const speakScene = (idx: number) => {
+    if (idx < 0 || idx >= story.scenes.length) return;
+    // Clear previous
+    window.speechSynthesis.cancel();
+    if (fallbackIntervalRef.current) clearInterval(fallbackIntervalRef.current);
+    if (autoAdvanceTimeoutRef.current) clearTimeout(autoAdvanceTimeoutRef.current);
+
+    const text = story.scenes[idx].text;
+    const utterance = new SpeechSynthesisUtterance(text);
     const rateMap = { slow: 0.8, normal: 1, fast: 1.25 };
     utterance.rate = rateMap[speedId];
     if (selectedVoiceURI) {
       const v = voices.find((vv) => vv.voiceURI === selectedVoiceURI);
       if (v) utterance.voice = v;
     }
+
     let wordIndex = 0;
-    const words = scene.text.split(/\s+/);
+    const words = text.split(/\s+/);
+
     utterance.onboundary = (e: any) => {
       if (e.name === "word") {
-        setCurrentWordIdx(wordIndex);
+        // Only highlight if this is still the visible page
+        if (currentPageRef.current === idx) {
+          setCurrentWordIdx(wordIndex);
+        }
         wordIndex++;
       }
     };
-    const fallbackInterval = setInterval(() => {
+
+    fallbackIntervalRef.current = setInterval(() => {
       if (!window.speechSynthesis.speaking) {
-        clearInterval(fallbackInterval);
+        clearInterval(fallbackIntervalRef.current);
         return;
       }
-      if (wordIndex < words.length) {
+      if (wordIndex < words.length && currentPageRef.current === idx) {
         setCurrentWordIdx((prev) => (prev === null ? 0 : Math.min((prev || 0) + 1, words.length - 1)));
         wordIndex++;
       }
     }, 400);
+
     utterance.onend = () => {
-      clearInterval(fallbackInterval);
-      setIsPlaying(false);
+      if (fallbackIntervalRef.current) clearInterval(fallbackIntervalRef.current);
       setCurrentWordIdx(null);
-      if (page < story.scenes.length - 1) {
-        // auto advance handled via effect? we keep manual
+
+      // If user stopped in the meantime, don't auto-advance
+      if (!isContinuousRef.current) {
+        setIsPlaying(false);
+        return;
+      }
+
+      if (idx < story.scenes.length - 1) {
+        // Advance to next scene
+        const nextIdx = idx + 1;
+        setPage(nextIdx);
+        // Small cozy pause between scenes
+        autoAdvanceTimeoutRef.current = setTimeout(() => {
+          if (isContinuousRef.current) {
+            speakScene(nextIdx);
+          }
+        }, 800);
       } else {
+        // Finished all scenes
+        isContinuousRef.current = false;
+        setIsPlaying(false);
         setShowGoodnight(true);
-        setTimeout(() => setShowGoodnight(false), 3000);
+        setTimeout(() => setShowGoodnight(false), 4000);
       }
     };
+
     utterance.onerror = () => {
-      clearInterval(fallbackInterval);
-      setIsPlaying(false);
+      if (fallbackIntervalRef.current) clearInterval(fallbackIntervalRef.current);
       setCurrentWordIdx(null);
+      // On error, try to continue if in continuous mode
+      if (isContinuousRef.current && idx < story.scenes.length - 1) {
+        const nextIdx = idx + 1;
+        setPage(nextIdx);
+        autoAdvanceTimeoutRef.current = setTimeout(() => speakScene(nextIdx), 800);
+      } else {
+        isContinuousRef.current = false;
+        setIsPlaying(false);
+      }
     };
+
     utteranceRef.current = utterance;
     window.speechSynthesis.speak(utterance);
     setIsPlaying(true);
+  };
+
+  const handlePlay = () => {
+    if (isPlaying) {
+      stopPlayback();
+      return;
+    }
+    // Start continuous playback from current page to end
+    isContinuousRef.current = true;
+    speakScene(page);
     if (sleepTimer !== "off") {
       startSleepTimer(sleepTimer);
     }
+  };
+
+  const handleManualNav = (newPage: number) => {
+    // User manually navigated — stop auto-play
+    if (isPlaying) stopPlayback();
+    setPage(newPage);
+    setCurrentWordIdx(null);
   };
 
   const textSizeClass = textSize === "small" ? "text-[16px] leading-[1.7]" : textSize === "large" ? "text-[22px] leading-[1.6]" : "text-[18px] leading-[1.75]";
@@ -561,7 +640,7 @@ function ControlledReader({ story, page, setPage, reduceMotion, onRegenerate, re
 
         <div className="mt-8 flex items-center justify-between">
           <button
-            onClick={() => setPage(Math.max(0, page - 1))}
+            onClick={() => handleManualNav(Math.max(0, page - 1))}
             disabled={page === 0}
             className="h-10 px-4 rounded-full bg-[#2D2A6E]/10 text-[#1E1B4B] font-bold text-[13px] disabled:opacity-30"
             style={{ fontFamily: "var(--font-fredoka)" }}
@@ -575,10 +654,10 @@ function ControlledReader({ story, page, setPage, reduceMotion, onRegenerate, re
             }`}
             style={{ fontFamily: "var(--font-fredoka)" }}
           >
-            {isPlaying ? "⏸ Pause" : "▶ Play"}
+            {isPlaying ? "⏸ Pause" : "▶ Play all"}
           </button>
           <button
-            onClick={() => setPage(Math.min(story.scenes.length - 1, page + 1))}
+            onClick={() => handleManualNav(Math.min(story.scenes.length - 1, page + 1))}
             disabled={page === story.scenes.length - 1}
             className="h-10 px-4 rounded-full bg-[#2D2A6E]/10 text-[#1E1B4B] font-bold text-[13px] disabled:opacity-30"
             style={{ fontFamily: "var(--font-fredoka)" }}
@@ -591,7 +670,7 @@ function ControlledReader({ story, page, setPage, reduceMotion, onRegenerate, re
           {story.scenes.map((_, i) => (
             <button
               key={i}
-              onClick={() => setPage(i)}
+              onClick={() => handleManualNav(i)}
               className={`h-1.5 rounded-full transition-all ${i === page ? "w-6 bg-[#1E1B4B]" : "w-1.5 bg-[#1E1B4B]/20"}`}
               aria-label={`Go to page ${i + 1}`}
             />
