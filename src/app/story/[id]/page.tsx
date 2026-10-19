@@ -689,28 +689,51 @@ function ControlledReader({ story, page, setPage, reduceMotion, onRegenerate, re
         </div>
       </div>
 
-      {/* Quick actions */}
+      {/* Extra controls inside reader for quick access — reverted to original arrangement */}
       <div className="rounded-[20px] bg-[#2D2A6E] border border-white/10 p-4 flex flex-wrap gap-2 items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-bold tracking-widest uppercase text-[#9A96C8]" style={{ fontFamily: "var(--font-fredoka)" }}>Quick</span>
           <button onClick={() => onRegenerate()} disabled={regenLoading} className="h-8 px-3 rounded-full bg-white/10 text-[#FFF8E7] text-[11px] font-bold hover:bg-white/15 disabled:opacity-50">↻ Same mood</button>
           <button onClick={() => onRegenerate({ length: "extra" })} disabled={regenLoading} className="h-8 px-3 rounded-full bg-[#FFD93D]/20 text-[#FFD93D] text-[11px] font-bold hover:bg-[#FFD93D]/30 disabled:opacity-50">✨ Epic long</button>
         </div>
-        <span className="text-[10px] text-[#9A96C8]">Auto-plays all pages • {story.scenes.length} scenes</span>
+        <div className="flex items-center gap-2">
+          <label className="text-[11px] text-[#9A96C8]">Voice</label>
+          <select
+            value={selectedPresetId}
+            onChange={(e) => {
+              const id = e.target.value;
+              if (!id) {
+                setSelectedPresetId("");
+                setCustomPitch(1);
+                setCustomRateFactor(1);
+                setSelectedVoiceURI("");
+                return;
+              }
+              const opt = VOICE_OPTIONS.find((o) => o.id === id);
+              if (opt) {
+                const best = getBestVoiceForGender(voices, opt.gender as any) || voices[0];
+                if (best) setSelectedVoiceURI(best.voiceURI);
+                setSelectedPresetId(opt.id);
+                setCustomPitch(opt.pitch);
+                setCustomRateFactor(opt.rate);
+              }
+            }}
+            className="h-8 rounded-full bg-[#1E1B4B] border border-white/10 text-[#FFF8E7] text-[11px] px-2.5 max-w-[160px]"
+          >
+            <option value="">Auto</option>
+            <optgroup label="Female">
+              {VOICE_OPTIONS.filter((o) => o.gender === "female").map((o) => (
+                <option key={o.id} value={o.id}>{o.label}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Male">
+              {VOICE_OPTIONS.filter((o) => o.gender === "male").map((o) => (
+                <option key={o.id} value={o.id}>{o.label}</option>
+              ))}
+            </optgroup>
+          </select>
+        </div>
       </div>
-
-      {/* Voice section — male & female per mood — fixed 4+4 presets same on mobile/desktop with distinct pitch/rate */}
-      <VoicePicker
-        voices={voices}
-        selectedVoiceURI={selectedVoiceURI}
-        setSelectedVoiceURI={setSelectedVoiceURI}
-        selectedPresetId={selectedPresetId}
-        setSelectedPresetId={setSelectedPresetId}
-        setCustomPitch={setCustomPitch}
-        setCustomRateFactor={setCustomRateFactor}
-        mood={story.mood as any}
-        childName={story.childName}
-      />
 
       <div className="rounded-[20px] bg-[#2D2A6E]/50 border border-white/5 p-4 space-y-4">
         <div className="flex items-center justify-between">
@@ -764,28 +787,11 @@ function ControlledReader({ story, page, setPage, reduceMotion, onRegenerate, re
   );
 }
 
-// Voice picker — FIXED: distinct male/female even on mobile + distinct mood sounds on both platforms
+// Simple voice options — same 8 on mobile & desktop, distinct male/female tone via pitch
 type VoiceGender = "female" | "male" | "neutral";
 
-const MOOD_VOICE_META: Record<string, { description: string; female: string[]; male: string[] }> = {
-  Calm: { description: "Sweet, soft, calm", female: ["Sweet", "Soft", "Calm", "Gentle"], male: ["Warm", "Calm", "Soft", "Gentle"] },
-  Silly: { description: "Bubbly, playful, cheerful", female: ["Bubbly", "Playful", "Cheerful", "Bright"], male: ["Cheerful", "Light", "Playful", "Warm"] },
-  Brave: { description: "Kind, confident, steady", female: ["Kind", "Confident", "Warm", "Steady"], male: ["Steady", "Warm", "Confident", "Kind"] },
-  Sleepy: { description: "Sleepy, whispery, drowsy", female: ["Sleepy", "Whispery", "Soft", "Drowsy"], male: ["Drowsy", "Soft", "Sleepy", "Calm"] },
-  Adventurous: { description: "Bright, curious, friendly", female: ["Bright", "Curious", "Warm", "Gentle"], male: ["Friendly", "Warm", "Bright", "Curious"] },
-};
-
-// Mood audio profiles — make moods sound DISTINCT on both mobile & desktop via pitch/rate/pause/volume
-const MOOD_AUDIO_PROFILE: Record<string, { pitchMod: number; rateMod: number; pause: number; volume: number; emoji: string }> = {
-  Calm: { pitchMod: -0.05, rateMod: 0.84, pause: 950, volume: 0.9, emoji: "🌙" },
-  Silly: { pitchMod: 0.32, rateMod: 1.22, pause: 350, volume: 1.0, emoji: "🤪" },
-  Brave: { pitchMod: -0.08, rateMod: 0.94, pause: 600, volume: 1.0, emoji: "🦁" },
-  Sleepy: { pitchMod: -0.24, rateMod: 0.68, pause: 1350, volume: 0.82, emoji: "😴" },
-  Adventurous: { pitchMod: 0.15, rateMod: 1.1, pause: 500, volume: 1.0, emoji: "🗺️" },
-};
-
-const FEMALE_HINTS = ["female", "woman", "girl", "samantha", "karen", "moira", "tessa", "veena", "fiona", "ava", "aria", "jenny", "emma", "zira", "susan", "victoria", "allison", "amelie", "anna", "helena", "lucy", "kate", "joanna", "kathy", "serena", "melina", "mariska", "sara", "lisa", "nancy", "eva", "sofia", "isabella", "google uk english female", "google us english female", "siri female"];
-const MALE_HINTS = ["male", "man", "boy", "daniel", "alex", "fred", "thomas", "david", "mark", "paul", "james", "arthur", "george", "lee", "oliver", "samuel", "matthew", "john", "mike", "chris", "robert", "google uk english male", "google us english male", "siri male"];
+const FEMALE_HINTS = ["female", "woman", "girl", "samantha", "karen", "moira", "tessa", "veena", "fiona", "ava", "aria", "jenny", "emma", "zira", "susan", "victoria", "allison", "amelie", "anna", "helena", "lucy", "kate", "joanna", "kathy", "serena", "melina", "mariska", "sara", "lisa", "nancy", "eva", "sofia", "isabella", "google uk english female", "google us english female"];
+const MALE_HINTS = ["male", "man", "boy", "daniel", "alex", "fred", "thomas", "david", "mark", "paul", "james", "arthur", "george", "lee", "oliver", "samuel", "matthew", "john", "mike", "chris", "robert", "google uk english male", "google us english male"];
 
 function getVoiceGender(v: SpeechSynthesisVoice): VoiceGender {
   const name = v.name.toLowerCase();
@@ -798,265 +804,30 @@ function getVoiceGender(v: SpeechSynthesisVoice): VoiceGender {
   return "neutral";
 }
 
-// FIXED: Exaggerated pitch gap female 1.3-1.5 vs male 0.65-0.85 so they sound DISTINCT even on mobile with 1 base voice
-type VoicePreset = { id: string; label: string; pitch: number; rateFactor: number; emoji: string; baseVol: number };
-
-const FEMALE_PRESETS: VoicePreset[] = [
-  { id: "f-sweet", label: "Sweet", pitch: 1.48, rateFactor: 0.96, emoji: "🍯", baseVol: 1.0 },
-  { id: "f-soft", label: "Soft", pitch: 1.32, rateFactor: 0.86, emoji: "☁️", baseVol: 0.92 },
-  { id: "f-calm", label: "Calm", pitch: 1.18, rateFactor: 0.9, emoji: "🌙", baseVol: 0.9 },
-  { id: "f-gentle", label: "Gentle", pitch: 1.26, rateFactor: 0.88, emoji: "🕊️", baseVol: 0.92 },
-];
-
-const MALE_PRESETS: VoicePreset[] = [
-  { id: "m-warm", label: "Warm", pitch: 0.78, rateFactor: 0.96, emoji: "🔥", baseVol: 1.0 },
-  { id: "m-soft", label: "Soft", pitch: 0.82, rateFactor: 0.86, emoji: "🍃", baseVol: 0.9 },
-  { id: "m-calm", label: "Calm", pitch: 0.68, rateFactor: 0.9, emoji: "🌊", baseVol: 0.88 },
-  { id: "m-friendly", label: "Friendly", pitch: 0.88, rateFactor: 1.0, emoji: "⭐", baseVol: 1.0 },
-];
-
 function getBestVoiceForGender(voices: SpeechSynthesisVoice[], gender: VoiceGender): SpeechSynthesisVoice | null {
   const gendered = voices.filter((v) => getVoiceGender(v) === gender);
   if (gendered.length > 0) return gendered[0];
-  const notOpposite = voices.filter((v) => getVoiceGender(v) !== (gender === "female" ? "male" : "female"));
-  if (notOpposite.length > 0) return notOpposite[0];
   if (voices.length > 0) return voices[0];
   return null;
 }
 
-function clamp(n: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, n));
-}
+// 4 female (high pitch 1.18-1.48) + 4 male (low pitch 0.68-0.88) — same on mobile & desktop, distinct tone
+const VOICE_OPTIONS = [
+  { id: "female-sweet", label: "Female • Sweet", gender: "female", pitch: 1.45, rate: 0.96 },
+  { id: "female-soft", label: "Female • Soft", gender: "female", pitch: 1.28, rate: 0.86 },
+  { id: "female-calm", label: "Female • Calm", gender: "female", pitch: 1.15, rate: 0.9 },
+  { id: "female-gentle", label: "Female • Gentle", gender: "female", pitch: 1.22, rate: 0.88 },
+  { id: "male-warm", label: "Male • Warm", gender: "male", pitch: 0.78, rate: 0.96 },
+  { id: "male-soft", label: "Male • Soft", gender: "male", pitch: 0.82, rate: 0.86 },
+  { id: "male-calm", label: "Male • Calm", gender: "male", pitch: 0.70, rate: 0.9 },
+  { id: "male-friendly", label: "Male • Friendly", gender: "male", pitch: 0.88, rate: 1.0 },
+] as const;
 
-function VoicePicker({
-  voices,
-  selectedVoiceURI,
-  setSelectedVoiceURI,
-  selectedPresetId,
-  setSelectedPresetId,
-  setCustomPitch,
-  setCustomRateFactor,
-  mood,
-  childName,
-}: {
-  voices: SpeechSynthesisVoice[];
-  selectedVoiceURI: string;
-  setSelectedVoiceURI: (uri: string) => void;
-  selectedPresetId: string;
-  setSelectedPresetId: (id: string) => void;
-  setCustomPitch: (p: number) => void;
-  setCustomRateFactor: (r: number) => void;
-  mood: string;
-  childName: string;
-}) {
-  const meta = MOOD_VOICE_META[mood] || MOOD_VOICE_META.Calm;
-  const moodProfile = MOOD_AUDIO_PROFILE[mood] || MOOD_AUDIO_PROFILE.Calm;
-
-  const handleSelect = (preset: VoicePreset, gender: VoiceGender) => {
-    const bestVoice = getBestVoiceForGender(voices, gender) || voices[0];
-    if (bestVoice) setSelectedVoiceURI(bestVoice.voiceURI);
-    setSelectedPresetId(preset.id);
-    setCustomPitch(preset.pitch);
-    setCustomRateFactor(preset.rateFactor);
-  };
-
-  const preview = (preset: VoicePreset, gender: VoiceGender, styleLabel: string) => {
-    try {
-      window.speechSynthesis.cancel();
-      const bestVoice = getBestVoiceForGender(voices, gender) || voices[0];
-      const effectivePitch = clamp(preset.pitch + moodProfile.pitchMod, 0.5, 2);
-      const effectiveRate = clamp(preset.rateFactor * moodProfile.rateMod * 0.95, 0.5, 2);
-      const text = `Hello ${childName}! I'm your ${styleLabel.toLowerCase()} ${gender} voice. ${mood} mood: ${meta.description}. Pitch ${effectivePitch.toFixed(2)}, speed ${effectiveRate.toFixed(2)}. ${preset.emoji}`;
-      const u = new SpeechSynthesisUtterance(text);
-      if (bestVoice) u.voice = bestVoice;
-      u.pitch = effectivePitch;
-      u.rate = effectiveRate;
-      u.volume = moodProfile.volume * preset.baseVol;
-      window.speechSynthesis.speak(u);
-    } catch {}
-  };
-
-  const previewGenderDiff = () => {
-    try {
-      window.speechSynthesis.cancel();
-      const fVoice = getBestVoiceForGender(voices, "female") || voices[0];
-      const mVoice = getBestVoiceForGender(voices, "male") || voices[0];
-      const fPreset = FEMALE_PRESETS[0];
-      const mPreset = MALE_PRESETS[0];
-      const fPitch = clamp(fPreset.pitch + moodProfile.pitchMod, 0.5, 2);
-      const mPitch = clamp(mPreset.pitch + moodProfile.pitchMod, 0.5, 2);
-      const fRate = clamp(fPreset.rateFactor * moodProfile.rateMod, 0.5, 2);
-      const mRate = clamp(mPreset.rateFactor * moodProfile.rateMod, 0.5, 2);
-
-      const u1 = new SpeechSynthesisUtterance(`Female voice, sweet and high, pitch ${fPitch.toFixed(1)}. Hello ${childName}!`);
-      if (fVoice) u1.voice = fVoice;
-      u1.pitch = fPitch;
-      u1.rate = fRate;
-      u1.volume = 1;
-
-      const u2 = new SpeechSynthesisUtterance(`Male voice, warm and low, pitch ${mPitch.toFixed(1)}. Hello ${childName}! Can you hear the difference? Female is high, male is low.`);
-      if (mVoice) u2.voice = mVoice;
-      u2.pitch = mPitch;
-      u2.rate = mRate;
-      u2.volume = 1;
-
-      window.speechSynthesis.speak(u1);
-      u1.onend = () => {
-        setTimeout(() => window.speechSynthesis.speak(u2), 400);
-      };
-    } catch {}
-  };
-
-  const previewMoodDiff = () => {
-    try {
-      window.speechSynthesis.cancel();
-      const baseVoice = voices[0];
-      const preset = FEMALE_PRESETS[0];
-      const moods: (keyof typeof MOOD_AUDIO_PROFILE)[] = ["Calm", "Silly", "Sleepy", "Brave", "Adventurous"];
-      let idx = 0;
-      const speakNext = () => {
-        if (idx >= moods.length) return;
-        const m = moods[idx];
-        const prof = MOOD_AUDIO_PROFILE[m];
-        const p = clamp(preset.pitch + prof.pitchMod, 0.5, 2);
-        const r = clamp(preset.rateFactor * prof.rateMod, 0.5, 2);
-        const u = new SpeechSynthesisUtterance(`${m} mood, ${prof.pause} millisecond pause, pitch ${p.toFixed(1)}, speed ${r.toFixed(2)}. ${m === "Sleepy" ? "Yaaawn, so sleepy..." : m === "Silly" ? "Hehe, giggle wiggle!" : m === "Calm" ? "Soft and calm, breathing slowly." : m === "Brave" ? "Steady and kind, you are safe." : "Bright and curious, let's explore!"}`);
-        if (baseVoice) u.voice = baseVoice;
-        u.pitch = p;
-        u.rate = r;
-        u.volume = prof.volume;
-        u.onend = () => {
-          idx++;
-          setTimeout(speakNext, prof.pause);
-        };
-        window.speechSynthesis.speak(u);
-      };
-      speakNext();
-    } catch {}
-  };
-
-  const isSelected = (id: string) => selectedPresetId === id;
-
-  return (
-    <div className="rounded-[20px] bg-[#2D2A6E]/70 border border-white/10 p-4 space-y-4">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[12px] font-bold tracking-widest uppercase text-[#D9D6F7]" style={{ fontFamily: "var(--font-fredoka)" }}>
-              Voice • {meta.description}
-            </span>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FFD93D]/20 text-[#FFD93D]">{mood}</span>
-            <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#C4B5FD]/20 text-[#C4B5FD] border border-[#C4B5FD]/20">Female 1.48 vs Male 0.68 pitch</span>
-          </div>
-          <p className="mt-1.5 text-[11px] text-[#9A96C8] leading-snug">
-            Fixed 8 voices same on mobile & desktop. Female high (1.18-1.48) vs Male low (0.68-0.88) so you CAN tell difference on mobile. Mood changes pitch/rate/pause.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            <button onClick={previewGenderDiff} className="h-7 px-3 rounded-full bg-[#FF8FB1]/20 border border-[#FF8FB1]/30 text-[#FF8FB1] text-[10px] font-bold hover:bg-[#FF8FB1]/30">▶ Hear Female vs Male diff</button>
-            <button onClick={previewMoodDiff} className="h-7 px-3 rounded-full bg-[#7DD3FC]/20 border border-[#7DD3FC]/30 text-[#7DD3FC] text-[10px] font-bold hover:bg-[#7DD3FC]/30">▶ Hear Mood diff (Calm→Silly→Sleepy)</button>
-          </div>
-        </div>
-        <button
-          onClick={() => {
-            setSelectedVoiceURI("");
-            setSelectedPresetId("");
-            setCustomPitch(1);
-            setCustomRateFactor(1);
-          }}
-          className={`shrink-0 h-7 px-3 rounded-full text-[11px] font-bold border ${!selectedPresetId ? "bg-[#FFF8E7] text-[#1E1B4B] border-[#FFF8E7]" : "bg-[#1E1B4B] text-[#9A96C8] border-white/10"}`}
-        >
-          Auto
-        </button>
-      </div>
-
-      <div>
-        <div className="flex items-center gap-2 mb-2.5">
-          <span className="text-[11px] font-bold text-[#FF8FB1] px-2.5 py-1 rounded-full bg-[#FF8FB1]/15 border border-[#FF8FB1]/30" style={{ fontFamily: "var(--font-fredoka)" }}>♀ Female • 4 distinct • pitch 1.18-1.48</span>
-          <span className="text-[10px] text-[#9A96C8]">{meta.female.join(" • ")}</span>
-          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#FF8FB1]/10 text-[#FF8FB1]">HIGH</span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {FEMALE_PRESETS.map((preset, i) => {
-            const styleLabel = meta.female[i % meta.female.length];
-            const sel = isSelected(preset.id);
-            const effPitch = clamp(preset.pitch + moodProfile.pitchMod, 0.5, 2).toFixed(2);
-            const effRate = clamp(preset.rateFactor * moodProfile.rateMod, 0.5, 2).toFixed(2);
-            return (
-              <div
-                key={preset.id}
-                className={`flex items-center justify-between rounded-[14px] border pl-3 pr-1.5 py-2.5 transition-all ${
-                  sel ? "bg-[#FF8FB1] text-[#1E1B4B] border-[#FF8FB1] shadow-[0_2px_12px_rgba(255,143,177,0.4)]" : "bg-[#1E1B4B] text-[#D9D6F7] border-white/10 hover:border-[#FF8FB1]/30"
-                }`}
-              >
-                <button onClick={() => handleSelect(preset, "female")} className="flex items-center gap-2.5 text-left flex-1">
-                  <span className="text-[16px]">{preset.emoji}</span>
-                  <span className="flex flex-col leading-none">
-                    <span className="font-bold text-[12px] flex items-center gap-1">{styleLabel} <span className={`text-[8px] px-1 py-0.5 rounded ${sel ? "bg-[#1E1B4B]/15" : "bg-[#FF8FB1]/20 text-[#FF8FB1]"}`}>F</span></span>
-                    <span className={`text-[9px] mt-1 ${sel ? "text-[#1E1B4B]/70" : "text-[#9A96C8]"}`}>p{effPitch} r{effRate} • {preset.label} • {mood} {moodProfile.emoji}</span>
-                  </span>
-                </button>
-                <button
-                  onClick={() => preview(preset, "female", styleLabel)}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] shrink-0 font-bold ${sel ? "bg-[#1E1B4B]/15 hover:bg-[#1E1B4B]/25" : "bg-white/10 hover:bg-[#FF8FB1]/20"}`}
-                  aria-label={`Preview ${styleLabel}`}
-                >
-                  ▶
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div>
-        <div className="flex items-center gap-2 mb-2.5">
-          <span className="text-[11px] font-bold text-[#7DD3FC] px-2.5 py-1 rounded-full bg-[#7DD3FC]/15 border border-[#7DD3FC]/30" style={{ fontFamily: "var(--font-fredoka)" }}>♂ Male • 4 distinct • pitch 0.68-0.88</span>
-          <span className="text-[10px] text-[#9A96C8]">{meta.male.join(" • ")}</span>
-          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#7DD3FC]/10 text-[#7DD3FC]">LOW</span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {MALE_PRESETS.map((preset, i) => {
-            const styleLabel = meta.male[i % meta.male.length];
-            const sel = isSelected(preset.id);
-            const effPitch = clamp(preset.pitch + moodProfile.pitchMod, 0.5, 2).toFixed(2);
-            const effRate = clamp(preset.rateFactor * moodProfile.rateMod, 0.5, 2).toFixed(2);
-            return (
-              <div
-                key={preset.id}
-                className={`flex items-center justify-between rounded-[14px] border pl-3 pr-1.5 py-2.5 transition-all ${
-                  sel ? "bg-[#7DD3FC] text-[#1E1B4B] border-[#7DD3FC] shadow-[0_2px_12px_rgba(125,211,252,0.4)]" : "bg-[#1E1B4B] text-[#D9D6F7] border-white/10 hover:border-[#7DD3FC]/30"
-                }`}
-              >
-                <button onClick={() => handleSelect(preset, "male")} className="flex items-center gap-2.5 text-left flex-1">
-                  <span className="text-[16px]">{preset.emoji}</span>
-                  <span className="flex flex-col leading-none">
-                    <span className="font-bold text-[12px] flex items-center gap-1">{styleLabel} <span className={`text-[8px] px-1 py-0.5 rounded ${sel ? "bg-[#1E1B4B]/15" : "bg-[#7DD3FC]/20 text-[#7DD3FC]"}`}>M</span></span>
-                    <span className={`text-[9px] mt-1 ${sel ? "text-[#1E1B4B]/70" : "text-[#9A96C8]"}`}>p{effPitch} r{effRate} • {preset.label} • {mood} {moodProfile.emoji}</span>
-                  </span>
-                </button>
-                <button
-                  onClick={() => preview(preset, "male", styleLabel)}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] shrink-0 font-bold ${sel ? "bg-[#1E1B4B]/15 hover:bg-[#1E1B4B]/25" : "bg-white/10 hover:bg-[#7DD3FC]/20"}`}
-                  aria-label={`Preview ${styleLabel}`}
-                >
-                  ▶
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="rounded-[12px] bg-[#1E1B4B]/60 border border-white/5 p-3 space-y-2">
-        <div className="flex items-center gap-2 text-[10px] font-bold text-[#D9D6F7]">
-          <span>🎧 Why distinct now?</span>
-          <span className="px-2 py-0.5 rounded-full bg-[#FF8FB1]/15 text-[#FF8FB1]">Female 1.48 vs Male 0.68 = 0.8 gap</span>
-          <span className="px-2 py-0.5 rounded-full bg-[#7DD3FC]/15 text-[#7DD3FC]">Mood pitch ±0.32 rate 0.68-1.22</span>
-        </div>
-        <p className="text-[10px] text-[#9A96C8] leading-snug">
-          <span className="text-[#D9D6F7]">Mobile fix:</span> Even if your phone has only 1 system voice, female uses pitch 1.18-1.48 (high) and male uses 0.68-0.88 (low) — 0.8 difference you CAN hear. <span className="text-[#D9D6F7]">Mood fix:</span> Calm = slow 0.84× + low pitch + 950ms pause {MOOD_AUDIO_PROFILE.Calm.emoji}, Silly = fast 1.22× + high +0.32 pitch + 350ms {MOOD_AUDIO_PROFILE.Silly.emoji}, Sleepy = very slow 0.68× + low -0.24 pitch + 1350ms yawn {MOOD_AUDIO_PROFILE.Sleepy.emoji}, Brave = steady 0.94× {MOOD_AUDIO_PROFILE.Brave.emoji}, Adventurous = bright 1.1× {MOOD_AUDIO_PROFILE.Adventurous.emoji}. Same 8 voices on desktop & mobile.
-        </p>
-      </div>
-    </div>
-  );
-}
+// Mood audio — makes moods sound distinct on both mobile & desktop
+const MOOD_AUDIO_PROFILE: Record<string, { pitchMod: number; rateMod: number; pause: number; volume: number }> = {
+  Calm: { pitchMod: -0.05, rateMod: 0.86, pause: 900, volume: 0.9 },
+  Silly: { pitchMod: 0.28, rateMod: 1.18, pause: 400, volume: 1.0 },
+  Brave: { pitchMod: -0.06, rateMod: 0.94, pause: 600, volume: 1.0 },
+  Sleepy: { pitchMod: -0.20, rateMod: 0.70, pause: 1300, volume: 0.84 },
+  Adventurous: { pitchMod: 0.12, rateMod: 1.06, pause: 500, volume: 1.0 },
+};
