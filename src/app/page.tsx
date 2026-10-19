@@ -134,13 +134,65 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
-            <div className="mt-10 grid grid-cols-2 md:grid-cols-5 gap-3">
-              {(["Calm", "Silly", "Brave", "Sleepy", "Adventurous"] as const).map((mood) => (
-                <div key={mood} className="rounded-[20px] overflow-hidden border border-white/10">
-                  <div className="h-[88px]" style={{ background: `linear-gradient(135deg, ${MOOD_PALETTES[mood].primary}, ${MOOD_PALETTES[mood].secondary})` }} />
-                  <div className="bg-[#2D2A6E] p-3">
-                    <p className="font-bold text-[13px] text-[#FFF8E7]" style={{ fontFamily: "var(--font-fredoka)" }}>
-                      {mood}
+            {/* Illustrated mood board - animals demonstrating each mood */}
+            <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-5">
+              {(
+                [
+                  {
+                    mood: "Calm" as const,
+                    animal: "Bunny" as const,
+                    desc: "soft hill with moon, bunny sitting calm breathing slowly, starry sky with flowers",
+                    action: "Breathing slowly, eyes soft",
+                  },
+                  {
+                    mood: "Silly" as const,
+                    animal: "Dino" as const,
+                    desc: "silly dino wiggling and dancing on hill, funny little wobble, stars and flowers, meadow",
+                    action: "Wiggling and giggling",
+                  },
+                  {
+                    mood: "Brave" as const,
+                    animal: "Bear" as const,
+                    desc: "brave bear standing proudly on hill, moon and stars, safe and kind, forest edge",
+                    action: "Standing tall and kind",
+                  },
+                  {
+                    mood: "Sleepy" as const,
+                    animal: "Owl" as const,
+                    desc: "sleepy owl yawning on hill, moon over hill, stars blinking slowly, cozy night",
+                    action: "Yawning, drifting to dreams",
+                  },
+                  {
+                    mood: "Adventurous" as const,
+                    animal: "Fox" as const,
+                    desc: "adventurous fox exploring hill with soft map, meadow and pond, moon and stars",
+                    action: "Exploring with a star map",
+                  },
+                ] as const
+              ).map(({ mood, animal, desc, action }) => (
+                <div key={mood} className="group rounded-[24px] overflow-hidden bg-[#2D2A6E] border border-white/10 hover:border-white/20 transition-colors">
+                  <div className="aspect-[4/3] w-full overflow-hidden">
+                    <StoryCanvas animal={animal} mood={mood} description={desc} reduceMotion={reduceMotion} />
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[16px]">{MOOD_PALETTES[mood].emoji}</span>
+                      <p className="font-bold text-[14px] text-[#FFF8E7]" style={{ fontFamily: "var(--font-fredoka)" }}>
+                        {mood}
+                      </p>
+                      <span
+                        className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        style={{
+                          background: `${MOOD_PALETTES[mood].primary}20`,
+                          color: MOOD_PALETTES[mood].primary,
+                          fontFamily: "var(--font-fredoka)",
+                        }}
+                      >
+                        {animal}
+                      </span>
+                    </div>
+                    <p className="mt-1.5 text-[12px] leading-[1.4] text-[#D9D6F7]" style={{ fontFamily: "var(--font-nunito)" }}>
+                      {action}
                     </p>
                   </div>
                 </div>
