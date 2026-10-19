@@ -9,7 +9,7 @@ export function Header() {
 
   return (
     <header className="w-full sticky top-0 z-30 backdrop-blur-xl bg-[#1E1B4B]/80 border-b border-white/5">
-      <div className="mx-auto max-w-[1100px] px-6 md:px-16 flex items-center justify-between h-[68px]">
+      <div className="mx-auto max-w-[1280px] px-6 md:px-16 flex items-center justify-between h-[68px]">
         <Link href="/" className="flex items-center" aria-label="Moonthread home">
           <LogoWordmark size={36} />
         </Link>
@@ -49,7 +49,7 @@ export function Header() {
 export function SimpleHeader({ title }: { title?: string }) {
   return (
     <header className="w-full sticky top-0 z-30 backdrop-blur-xl bg-[#1E1B4B]/80 border-b border-white/5">
-      <div className="mx-auto max-w-[1100px] px-6 md:px-16 flex items-center justify-between h-[68px]">
+      <div className="mx-auto max-w-[1280px] px-6 md:px-16 flex items-center justify-between h-[68px]">
         <Link href="/" aria-label="Moonthread home">
           <LogoWordmark size={36} />
         </Link>

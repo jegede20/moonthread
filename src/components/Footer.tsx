@@ -5,7 +5,7 @@ import { LogoWordmark } from "./Logo";
 export function Footer() {
   return (
     <footer className="w-full bg-[#16143A] border-t border-white/5 mt-0">
-      <div className="mx-auto max-w-[1100px] px-6 md:px-16 py-14 md:py-20">
+      <div className="mx-auto max-w-[1280px] px-6 md:px-16 py-14 md:py-20">
         <div className="flex flex-col md:flex-row md:justify-between gap-10 md:gap-16">
           <div className="max-w-[320px]">
             <LogoWordmark size={38} />
