@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+:root {
+  --midnight: #1E1B4B;
+  --card: #2D2A6E;
+  --footer: #16143A;
+  --cream: #FFF8E7;
+  --secondary: #D9D6F7;
+  --yellow: #FFD93D;
+  --pink: #FF8FB1;
+  --lavender: #C4B5FD;
+  --mint: #6EE7B7;
+  --sky: #7DD3FC;
+  --coral: #FF7A59;
+  --coral-shadow: #C4533A;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--midnight);
+  color: var(--cream);
+  font-family: var(--font-nunito), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--yellow);
+  outline-offset: 2px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--midnight);
+}
+::-webkit-scrollbar-thumb {
+  background: #3A377A;
+  border-radius: 4px;
+}
+
+/* Safe area for bottom nav */
+.safe-pb {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Button press effect */
+.btn-primary {
+  background: var(--coral);
+  color: var(--midnight);
+  border-radius: 9999px;
+  font-family: var(--font-fredoka);
+  font-weight: 700;
+  box-shadow: 0 4px 0 var(--coral-shadow);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.btn-primary:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 var(--coral-shadow);
+}
+.btn-secondary {
+  background: transparent;
+  color: var(--cream);
+  border: 2px solid var(--lavender);
+  border-radius: 9999px;
+  font-family: var(--font-fredoka);
+  font-weight: 600;
+}
