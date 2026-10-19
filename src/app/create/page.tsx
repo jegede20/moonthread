@@ -5,7 +5,7 @@ import { SimpleHeader } from "@/components/Header";
 import { BottomNav } from "@/components/BottomNav";
 import { AnimalTile } from "@/components/AnimalTile";
 import { MoodPill } from "@/components/MoodPill";
-import { ANIMALS, MOODS, AGE_GROUPS, AGE_CONFIG, Animal, Mood, AgeGroup, STORY_COOLDOWN_MS } from "@/lib/constants";
+import { ANIMALS, MOODS, AGE_GROUPS, AGE_CONFIG, STORY_LENGTHS, Animal, Mood, AgeGroup, StoryLengthId, STORY_COOLDOWN_MS } from "@/lib/constants";
 import { Story } from "@/lib/storyTypes";
 import { saveTempStory, getSettings } from "@/lib/db";
 import { generateOfflineStory } from "@/lib/offlineTemplates";
@@ -16,13 +16,13 @@ export default function CreatePage() {
   const [animal, setAnimal] = useState<Animal>("Fox");
   const [mood, setMood] = useState<Mood>("Calm");
   const [age, setAge] = useState<AgeGroup>("5-7");
+  const [storyLength, setStoryLength] = useState<StoryLengthId>("medium");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
 
   useEffect(() => {
     getSettings().then(() => {});
-    // cooldown from localStorage
     const last = localStorage.getItem("moonthread-last-story");
     if (last) {
       const diff = Date.now() - parseInt(last, 10);
@@ -42,6 +42,12 @@ export default function CreatePage() {
       }
     }
   }, []);
+
+  // Update default length when age changes
+  useEffect(() => {
+    const defaultMap: Record<AgeGroup, StoryLengthId> = { "2-4": "short", "5-7": "medium", "8-10": "long" };
+    setStoryLength(defaultMap[age]);
+  }, [age]);
 
   const validateName = (name: string) => {
     if (!name.trim()) return "Please add a name";
@@ -69,10 +75,10 @@ export default function CreatePage() {
       animal,
       mood,
       ageGroup: age,
+      storyLength,
     };
 
     try {
-      // Try online first if navigator onLine
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         throw new Error("offline");
       }
@@ -99,6 +105,7 @@ export default function CreatePage() {
         scenes: data.scenes,
         createdAt: Date.now(),
         isOffline: false,
+        storyLength: input.storyLength,
       };
 
       await saveTempStory(story);
@@ -106,7 +113,6 @@ export default function CreatePage() {
       router.push(`/story/${story.id}`);
     } catch (e: any) {
       console.warn("Groq failed, using offline template", e);
-      // Offline fallback
       const offlineStory = generateOfflineStory(input);
       await saveTempStory(offlineStory);
       router.push(`/story/${offlineStory.id}?offline=1`);
@@ -128,7 +134,6 @@ export default function CreatePage() {
         </p>
 
         <div className="mt-8 space-y-8">
-          {/* Child name */}
           <div>
             <label className="text-[13px] font-bold tracking-widest uppercase text-[#D9D6F7]" style={{ fontFamily: "var(--font-fredoka)" }}>
               Child&apos;s name
@@ -144,7 +149,6 @@ export default function CreatePage() {
             />
           </div>
 
-          {/* Animal */}
           <div>
             <label className="text-[13px] font-bold tracking-widest uppercase text-[#D9D6F7]" style={{ fontFamily: "var(--font-fredoka)" }}>
               Favorite animal
@@ -156,7 +160,6 @@ export default function CreatePage() {
             </div>
           </div>
 
-          {/* Mood */}
           <div>
             <label className="text-[13px] font-bold tracking-widest uppercase text-[#D9D6F7]" style={{ fontFamily: "var(--font-fredoka)" }}>
               Mood
@@ -168,7 +171,6 @@ export default function CreatePage() {
             </div>
           </div>
 
-          {/* Age */}
           <div>
             <label className="text-[13px] font-bold tracking-widest uppercase text-[#D9D6F7]" style={{ fontFamily: "var(--font-fredoka)" }}>
               Age
@@ -191,7 +193,36 @@ export default function CreatePage() {
               ))}
             </div>
             <p className="mt-2 text-[12px] text-[#9A96C8]" style={{ fontFamily: "var(--font-nunito)" }}>
-              {AGE_CONFIG[age].description} — {AGE_CONFIG[age].scenes} scenes
+              {AGE_CONFIG[age].description}
+            </p>
+          </div>
+
+          <div>
+            <label className="text-[13px] font-bold tracking-widest uppercase text-[#D9D6F7] flex items-center gap-2" style={{ fontFamily: "var(--font-fredoka)" }}>
+              Story length
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FFD93D]/20 text-[#FFD93D] normal-case tracking-normal">NEW</span>
+            </label>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {STORY_LENGTHS.map((len) => (
+                <button
+                  key={len.id}
+                  type="button"
+                  onClick={() => setStoryLength(len.id)}
+                  className={`h-[52px] rounded-[16px] px-3 flex flex-col items-start justify-center gap-0.5 border-2 text-left transition-all ${
+                    storyLength === len.id
+                      ? "bg-[#FFF8E7] text-[#1E1B4B] border-[#FFF8E7]"
+                      : "bg-[#2D2A6E] text-[#D9D6F7] border-white/10 hover:border-white/20"
+                  }`}
+                >
+                  <span className="font-bold text-[13px]" style={{ fontFamily: "var(--font-fredoka)" }}>
+                    {len.label} • {len.scenes} scenes
+                  </span>
+                  <span className="text-[11px] opacity-70 leading-none">{len.description}</span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-[12px] text-[#9A96C8]" style={{ fontFamily: "var(--font-nunito)" }}>
+              Age controls vocabulary, length controls how long the adventure is.
             </p>
           </div>
 

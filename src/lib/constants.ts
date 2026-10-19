@@ -51,6 +51,15 @@ export const COLORS = {
 export const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 export const STORY_COOLDOWN_MS = 15000;
 
+export const STORY_LENGTHS = [
+  { id: "short", label: "Short", scenes: 3, description: "3 scenes, quick cozy" },
+  { id: "medium", label: "Medium", scenes: 5, description: "5 scenes, classic bedtime" },
+  { id: "long", label: "Long", scenes: 6, description: "6 scenes, extended adventure" },
+  { id: "extra", label: "Extra Long", scenes: 8, description: "8 scenes, epic gentle journey" },
+] as const;
+
+export type StoryLengthId = typeof STORY_LENGTHS[number]["id"];
+
 export const SLEEP_TIMERS = [
   { id: "off", label: "Off", minutes: 0 },
   { id: "10", label: "10 min", minutes: 10 },

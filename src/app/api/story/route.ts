@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ANIMALS, MOODS, AGE_GROUPS, AGE_CONFIG, GROQ_MODEL } from "@/lib/constants";
+import { ANIMALS, MOODS, AGE_GROUPS, AGE_CONFIG, GROQ_MODEL, STORY_LENGTHS } from "@/lib/constants";
 import { buildGroqPrompt, validateStoryStructure } from "@/lib/safety";
 
 // Simple in-memory rate limiter per IP
@@ -31,7 +31,7 @@ function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
 }
 
 function validateInput(body: any): { valid: boolean; error?: string; data?: any } {
-  const { childName, animal, mood, ageGroup } = body || {};
+  const { childName, animal, mood, ageGroup, storyLength } = body || {};
 
   if (typeof childName !== "string" || !childName.trim()) {
     return { valid: false, error: "Child name is required" };
@@ -44,7 +44,14 @@ function validateInput(body: any): { valid: boolean; error?: string; data?: any 
   if (!MOODS.includes(mood)) return { valid: false, error: "Invalid mood" };
   if (!AGE_GROUPS.includes(ageGroup)) return { valid: false, error: "Invalid age group" };
 
-  return { valid: true, data: { childName: name, animal, mood, ageGroup } };
+  let lengthId: string | undefined = undefined;
+  if (storyLength !== undefined) {
+    const found = STORY_LENGTHS.find((l) => l.id === storyLength);
+    if (!found) return { valid: false, error: "Invalid story length" };
+    lengthId = found.id;
+  }
+
+  return { valid: true, data: { childName: name, animal, mood, ageGroup, storyLength: lengthId } };
 }
 
 async function callGroq(prompt: string): Promise<any> {
@@ -65,11 +72,10 @@ async function callGroq(prompt: string): Promise<any> {
         { role: "user", content: prompt },
       ],
       temperature: 0.7,
-      max_tokens: 2500,
+      max_tokens: 3000,
       response_format: { type: "json_object" },
     };
 
-    // gpt-oss models are reasoning models - use low effort to keep JSON short and fast
     if (isGptOss) {
       body.reasoning_effort = "low";
     }
@@ -125,10 +131,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    const { childName, animal, mood, ageGroup } = validation.data;
-    const expectedScenes = AGE_CONFIG[ageGroup as keyof typeof AGE_CONFIG].scenes;
+    const { childName, animal, mood, ageGroup, storyLength } = validation.data;
+    
+    // Determine expected scenes: use storyLength if provided, else age config
+    let expectedScenes = AGE_CONFIG[ageGroup as keyof typeof AGE_CONFIG].scenes;
+    if (storyLength) {
+      const len = STORY_LENGTHS.find((l) => l.id === storyLength);
+      if (len) expectedScenes = len.scenes;
+    }
 
-    const prompt = buildGroqPrompt({ childName, animal, mood, ageGroup }, expectedScenes);
+    const prompt = buildGroqPrompt({ childName, animal, mood, ageGroup, storyLength }, expectedScenes);
 
     let attempt = 0;
     let lastError: any = null;

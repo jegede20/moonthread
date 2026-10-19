@@ -1,4 +1,4 @@
-import { Animal, Mood, AgeGroup } from "./constants";
+import { Animal, Mood, AgeGroup, StoryLengthId } from "./constants";
 
 export type Scene = {
   text: string;
@@ -18,6 +18,7 @@ export type Story = {
   scenes: Scene[];
   createdAt: number;
   isOffline?: boolean;
+  storyLength?: StoryLengthId;
 };
 
 export type CreateStoryInput = {
@@ -25,6 +26,7 @@ export type CreateStoryInput = {
   animal: Animal;
   mood: Mood;
   ageGroup: AgeGroup;
+  storyLength?: StoryLengthId;
 };
 
 export type StorySettings = {

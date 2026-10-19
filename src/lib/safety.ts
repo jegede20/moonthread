@@ -10,7 +10,6 @@ const BLOCKLIST = [
 export function containsBlockedWords(text: string): { blocked: boolean; word?: string } {
   const lower = text.toLowerCase();
   for (const w of BLOCKLIST) {
-    // Use word boundary check for short words to avoid false positives
     const pattern = new RegExp(`\\b${w}\\b`, "i");
     if (pattern.test(lower)) {
       return { blocked: true, word: w };
@@ -37,24 +36,18 @@ export function validateStoryStructure(story: any, expectedScenes: number): { va
       return { valid: false, reason: `Blocked word in scene ${i}: ${check.word}` };
     }
   }
-  // Last scene should be sleepy / calm ending
-  const lastText = story.scenes[story.scenes.length - 1]?.text?.toLowerCase() || "";
-  const sleepyWords = ["sleep", "sleepy", "dream", "yawn", "cozy", "snuggle", "goodnight", "night", "rest"];
-  const hasSleepyEnding = sleepyWords.some(w => lastText.includes(w));
-  if (!hasSleepyEnding) {
-    // Not strictly failing, but warn - we allow but prompt should ensure
-    // return { valid: false, reason: "Last scene should be sleepy ending" };
-  }
   return { valid: true };
 }
 
-export function buildGroqPrompt(input: { childName: string; animal: Animal; mood: Mood; ageGroup: AgeGroup }, expectedScenes: number) {
+import { Animal, Mood, AgeGroup, StoryLengthId } from "./constants";
+
+export function buildGroqPrompt(input: { childName: string; animal: Animal; mood: Mood; ageGroup: AgeGroup; storyLength?: StoryLengthId }, expectedScenes: number) {
   const { childName, animal, mood, ageGroup } = input as any;
 
-  const ageInstructions: Record<string, string> = {
-    "2-4": `AGE 2-4: Write 3 scenes only. Each scene: 1-2 very short simple sentences (max 15 words per sentence). Use very simple words, gentle repetition, warm and cozy. Example: "${childName} saw a star. The star twinkled."`,
-    "5-7": `AGE 5-7: Write 5 scenes. Each scene: 2-3 simple sentences (max 20 words per sentence). Simple vocabulary, warm, gentle adventure.`,
-    "8-10": `AGE 8-10: Write 6 scenes. Each scene: 2-4 sentences, slightly richer vocabulary but still gentle and calm, warm storytelling.`
+  const ageVocab: Record<string, string> = {
+    "2-4": `Very simple words, gentle repetition, warm and cozy. Each sentence max 15 words. Example: "${childName} saw a star. The star twinkled."`,
+    "5-7": `Simple vocabulary, warm, gentle adventure. Each sentence max 20 words.`,
+    "8-10": `Slightly richer vocabulary but still gentle and calm, warm storytelling. 2-4 sentences per scene.`
   };
 
   const moodInstructions: Record<string, string> = {
@@ -72,7 +65,8 @@ RULES - MUST FOLLOW:
 - Child hero name: ${childName}
 - Companion: a friendly ${animal}
 - Mood: ${mood}
-- ${ageInstructions[ageGroup]}
+- Age group: ${ageGroup} for vocabulary: ${ageVocab[ageGroup]}
+- LENGTH: Write exactly ${expectedScenes} scenes. Do not write more or less.
 - ${moodInstructions[mood]}
 - The child ${childName} is always the hero, with ${animal} as companion.
 - NO scary, violent, sad, or upsetting content. No monsters, ghosts, fighting, weapons, death, or danger.
@@ -96,5 +90,3 @@ For description: keep it short (under 15 words), mention setting like: hill, for
 Return ONLY JSON.
 `.trim();
 }
-
-import { Animal, Mood, AgeGroup } from "./constants";
