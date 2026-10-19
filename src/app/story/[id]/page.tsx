@@ -678,23 +678,18 @@ function ControlledReader({ story, page, setPage, reduceMotion, onRegenerate, re
         </div>
       </div>
 
-      {/* Extra controls inside reader for quick access */}
+      {/* Quick actions */}
       <div className="rounded-[20px] bg-[#2D2A6E] border border-white/10 p-4 flex flex-wrap gap-2 items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-bold tracking-widest uppercase text-[#9A96C8]" style={{ fontFamily: "var(--font-fredoka)" }}>Quick</span>
           <button onClick={() => onRegenerate()} disabled={regenLoading} className="h-8 px-3 rounded-full bg-white/10 text-[#FFF8E7] text-[11px] font-bold hover:bg-white/15 disabled:opacity-50">↻ Same mood</button>
           <button onClick={() => onRegenerate({ length: "extra" })} disabled={regenLoading} className="h-8 px-3 rounded-full bg-[#FFD93D]/20 text-[#FFD93D] text-[11px] font-bold hover:bg-[#FFD93D]/30 disabled:opacity-50">✨ Epic long</button>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-[11px] text-[#9A96C8]">Voice</label>
-          <select value={selectedVoiceURI} onChange={(e) => setSelectedVoiceURI(e.target.value)} className="h-8 rounded-full bg-[#1E1B4B] border border-white/10 text-[#FFF8E7] text-[11px] px-2 max-w-[140px]">
-            <option value="">Default</option>
-            {voices.slice(0, 12).map((v) => (
-              <option key={v.voiceURI} value={v.voiceURI}>{v.name.slice(0, 24)}</option>
-            ))}
-          </select>
-        </div>
+        <span className="text-[10px] text-[#9A96C8]">Auto-plays all pages • {story.scenes.length} scenes</span>
       </div>
+
+      {/* Voice section — male & female per mood */}
+      <VoicePicker voices={voices} selectedVoiceURI={selectedVoiceURI} setSelectedVoiceURI={setSelectedVoiceURI} mood={story.mood as any} childName={story.childName} />
 
       <div className="rounded-[20px] bg-[#2D2A6E]/50 border border-white/5 p-4 space-y-4">
         <div className="flex items-center justify-between">
@@ -744,6 +739,158 @@ function ControlledReader({ story, page, setPage, reduceMotion, onRegenerate, re
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Voice picker with male/female per mood — sweet, soft, calm etc
+type VoiceGender = "female" | "male" | "neutral";
+
+const MOOD_VOICE_META: Record<string, { description: string; female: string[]; male: string[] }> = {
+  Calm: { description: "Sweet, soft, calm", female: ["Sweet", "Soft", "Calm", "Gentle"], male: ["Warm", "Calm", "Soft", "Gentle"] },
+  Silly: { description: "Bubbly, playful, cheerful", female: ["Bubbly", "Playful", "Cheerful", "Bright"], male: ["Cheerful", "Light", "Playful", "Warm"] },
+  Brave: { description: "Kind, confident, steady", female: ["Kind", "Confident", "Warm", "Steady"], male: ["Steady", "Warm", "Confident", "Kind"] },
+  Sleepy: { description: "Sleepy, whispery, drowsy", female: ["Sleepy", "Whispery", "Soft", "Drowsy"], male: ["Drowsy", "Soft", "Sleepy", "Calm"] },
+  Adventurous: { description: "Bright, curious, friendly", female: ["Bright", "Curious", "Warm", "Gentle"], male: ["Friendly", "Warm", "Bright", "Curious"] },
+};
+
+const FEMALE_HINTS = ["female", "woman", "girl", "samantha", "karen", "moira", "tessa", "veena", "fiona", "ava", "aria", "jenny", "emma", "zira", "susan", "victoria", "allison", "amelie", "anna", "helena", "lucy", "kate", "joanna", "kathy", "serena", "melina", "mariska", "sara", "lisa", "nancy", "eva", "sofia", "isabella"];
+const MALE_HINTS = ["male", "man", "boy", "daniel", "alex", "fred", "thomas", "david", "mark", "paul", "james", "arthur", "george", "lee", "oliver", "samuel", "matthew", "john", "mike", "chris", "robert"];
+
+function getVoiceGender(v: SpeechSynthesisVoice): VoiceGender {
+  const name = v.name.toLowerCase();
+  const hasFemale = FEMALE_HINTS.some((h) => name.includes(h));
+  const hasMale = MALE_HINTS.some((h) => name.includes(h));
+  if (hasFemale && !hasMale) return "female";
+  if (hasMale && !hasFemale) return "male";
+  // Google voices often include gender in name
+  if (name.includes("female")) return "female";
+  if (name.includes("male")) return "male";
+  return "neutral";
+}
+
+function VoicePicker({
+  voices,
+  selectedVoiceURI,
+  setSelectedVoiceURI,
+  mood,
+  childName,
+}: {
+  voices: SpeechSynthesisVoice[];
+  selectedVoiceURI: string;
+  setSelectedVoiceURI: (uri: string) => void;
+  mood: string;
+  childName: string;
+}) {
+  const meta = MOOD_VOICE_META[mood] || MOOD_VOICE_META.Calm;
+  const femaleVoices = voices.filter((v) => getVoiceGender(v) === "female");
+  const maleVoices = voices.filter((v) => getVoiceGender(v) === "male");
+  const neutralVoices = voices.filter((v) => getVoiceGender(v) === "neutral");
+
+  const preview = (v: SpeechSynthesisVoice, style: string) => {
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(`Hello ${childName}, I'm your ${style.toLowerCase()} voice for ${mood} stories.`);
+      u.voice = v;
+      u.rate = 0.95;
+      window.speechSynthesis.speak(u);
+    } catch {}
+  };
+
+  return (
+    <div className="rounded-[20px] bg-[#2D2A6E]/70 border border-white/10 p-4 space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] font-bold tracking-widest uppercase text-[#D9D6F7]" style={{ fontFamily: "var(--font-fredoka)" }}>
+              Voice • {meta.description}
+            </span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FFD93D]/20 text-[#FFD93D]">{mood}</span>
+          </div>
+          <p className="mt-1 text-[11px] text-[#9A96C8]">Pick male or female — each fits the mood: sweet, soft, calm, warm, sleepy, playful and more.</p>
+        </div>
+        <button
+          onClick={() => setSelectedVoiceURI("")}
+          className={`h-7 px-3 rounded-full text-[11px] font-bold border ${!selectedVoiceURI ? "bg-[#FFF8E7] text-[#1E1B4B] border-[#FFF8E7]" : "bg-[#1E1B4B] text-[#9A96C8] border-white/10"}`}
+        >
+          Auto
+        </button>
+      </div>
+
+      {/* Female */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[11px] font-bold text-[#FF8FB1]" style={{ fontFamily: "var(--font-fredoka)" }}>♀ Female</span>
+          <span className="text-[10px] text-[#9A96C8]">{meta.female.join(" • ")}</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {femaleVoices.length === 0 && <span className="text-[11px] text-[#9A96C8]">No female voices found on this device — using default sweet voice.</span>}
+          {femaleVoices.slice(0, 8).map((v, i) => {
+            const style = meta.female[i % meta.female.length];
+            const isSel = selectedVoiceURI === v.voiceURI;
+            return (
+              <div key={v.voiceURI} className={`group flex items-center gap-1.5 rounded-full border pl-2.5 pr-1 py-1 text-[11px] font-bold transition-all ${isSel ? "bg-[#FF8FB1] text-[#1E1B4B] border-[#FF8FB1]" : "bg-[#1E1B4B] text-[#D9D6F7] border-white/10 hover:border-white/20"}`}>
+                <button onClick={() => setSelectedVoiceURI(v.voiceURI)} className="flex items-center gap-1.5">
+                  <span>{v.name.split(" ")[0].slice(0, 14)}</span>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${isSel ? "bg-[#1E1B4B]/15 text-[#1E1B4B]" : "bg-white/10 text-[#9A96C8]"}`}>{style}</span>
+                </button>
+                <button onClick={() => preview(v, style)} className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${isSel ? "bg-[#1E1B4B]/10" : "bg-white/10 hover:bg-white/20"}`} aria-label="Preview">
+                  ▶
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Male */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[11px] font-bold text-[#7DD3FC]" style={{ fontFamily: "var(--font-fredoka)" }}>♂ Male</span>
+          <span className="text-[10px] text-[#9A96C8]">{meta.male.join(" • ")}</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {maleVoices.length === 0 && <span className="text-[11px] text-[#9A96C8]">No male voices found on this device — using default warm voice.</span>}
+          {maleVoices.slice(0, 8).map((v, i) => {
+            const style = meta.male[i % meta.male.length];
+            const isSel = selectedVoiceURI === v.voiceURI;
+            return (
+              <div key={v.voiceURI} className={`group flex items-center gap-1.5 rounded-full border pl-2.5 pr-1 py-1 text-[11px] font-bold transition-all ${isSel ? "bg-[#7DD3FC] text-[#1E1B4B] border-[#7DD3FC]" : "bg-[#1E1B4B] text-[#D9D6F7] border-white/10 hover:border-white/20"}`}>
+                <button onClick={() => setSelectedVoiceURI(v.voiceURI)} className="flex items-center gap-1.5">
+                  <span>{v.name.split(" ")[0].slice(0, 14)}</span>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${isSel ? "bg-[#1E1B4B]/15 text-[#1E1B4B]" : "bg-white/10 text-[#9A96C8]"}`}>{style}</span>
+                </button>
+                <button onClick={() => preview(v, style)} className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${isSel ? "bg-[#1E1B4B]/10" : "bg-white/10 hover:bg-white/20"}`} aria-label="Preview">
+                  ▶
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Neutral fallback */}
+      {neutralVoices.length > 0 && (femaleVoices.length === 0 || maleVoices.length === 0) && (
+        <div>
+          <div className="text-[11px] font-bold text-[#9A96C8] mb-2">Other voices</div>
+          <div className="flex flex-wrap gap-2">
+            {neutralVoices.slice(0, 6).map((v) => {
+              const isSel = selectedVoiceURI === v.voiceURI;
+              return (
+                <button
+                  key={v.voiceURI}
+                  onClick={() => setSelectedVoiceURI(v.voiceURI)}
+                  className={`h-7 px-3 rounded-full text-[11px] font-bold border ${isSel ? "bg-[#FFF8E7] text-[#1E1B4B] border-[#FFF8E7]" : "bg-[#1E1B4B] text-[#9A96C8] border-white/10"}`}
+                >
+                  {v.name.slice(0, 20)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <p className="text-[10px] text-[#9A96C8]">Tip: {mood === "Sleepy" ? "Sleepy & whispery voices are soft and slow — perfect for bedtime." : mood === "Calm" ? "Sweet & soft female or warm calm male — gentle for winding down." : mood === "Silly" ? "Bubbly playful female or cheerful light male — giggly but still cozy." : mood === "Brave" ? "Kind confident female or steady warm male — safe and proud." : "Bright curious female or friendly warm male — tiny gentle adventure."}</p>
     </div>
   );
 }
